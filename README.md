@@ -114,3 +114,18 @@ Any more questions, please do not hesitate to contact us: zjzhang21@stu.suda.edu
 
 ## License
 This project is licensed under the terms of the MIT license. See [LICENSE](./LICENSE) for additional details.
+
+## Citation
+```
+@article{zhangLABindIdentifyingProtein2025,
+  title = {{{LABind}}: Identifying Protein Binding Ligand-Aware Sites via Learning Interactions between Ligand and Protein},
+  author = {Zhang, Zhijun and Quan, Lijun and Wang, Junkai and Peng, Liangchen and Chen, Qiufeng and Zhang, Bei and Cao, Lexin and Jiang, Yelu and Li, Geng and Nie, Liangpeng and Wu, Tingfang and Lyu, Qiang},
+  year = {2025},
+  journal = {Nat. Commun.},
+  volume = {16},
+  number = {1},
+  pages = {7712},
+  issn = {2041-1723},
+  doi = {10.1038/s41467-025-62899-0}
+}
+```
