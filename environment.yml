@@ -1,4 +1,4 @@
-name: LABind
+name: LABind_ESM
 channels:
   - pytorch
   - nvidia

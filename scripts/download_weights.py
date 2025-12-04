@@ -1,5 +1,6 @@
 # download pretrained weights for LABind
 import os
+os.environ["GAI_USE_INET4"] = "1"
 from huggingface_hub import snapshot_download
 pretrain_path = { # Please modify 
     'esmfold_path': '../tools/esmfold_v1', # esmfold path
