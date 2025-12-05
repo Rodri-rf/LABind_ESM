@@ -24,7 +24,7 @@ nn_config = {
     'ion_min_repr': np.load(f'{root_path}/tools/ion_min_repr.npy'),
     # model parameters
     
-    'rfeat_dim':2580,
+    'rfeat_dim':2580, #dssp + esm
     'ligand_dim':768, 
     'hidden_dim':256, 
     'heads':4, 

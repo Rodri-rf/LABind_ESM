@@ -17,10 +17,19 @@ class readData(Dataset): # 用于训练
         return len(self.name_list)
     def __getitem__(self, idx):
         name, lig = self.name_list[idx] # name是pdb_name
-        dssp = self.Normalize(np.load(f'{self.proj_dir}/{data_class}_dssp/{self.mode}/{name}.npy'),nn_config[f'dssp_max_repr'],nn_config[f'dssp_min_repr'])
-        esm2 = self.Normalize(np.load(f'{self.proj_dir}/esm3B/{name}.npy'),nn_config[f'esm2_max_repr'],nn_config[f'esm2_min_repr'])
         
-        feature  = np.concatenate([dssp,esm2],axis=1)
+        dssp = self.Normalize(np.load(f'{self.proj_dir}/{data_class}_dssp/{self.mode}/{name}.npy'),nn_config[f'dssp_max_repr'],nn_config[f'dssp_min_repr'])
+
+        try:
+            esm2 = self.Normalize(np.load(f'{self.proj_dir}/esm3B/{name}.npy'),nn_config[f'esm2_max_repr'],nn_config[f'esm2_min_repr'])
+            feature  = np.concatenate([dssp,esm2],axis=1)
+        except ValueError:
+            print(f"Corrupt or mismatched file: {name}")
+            esm2 = None
+            feature  = None
+        
+        
+        
         ligand = self.Normalize(self.lig_dict[lig], nn_config[f'ion_max_repr'], nn_config[f'ion_min_repr'])# 768
         xyz      = np.load(f'{self.proj_dir}/{data_class}_pos/{self.mode}/{name}.npy')
         y_true   = np.asarray(list(self.label_dict[(name,lig)]),dtype=int)
@@ -104,6 +113,10 @@ class LoadData(Dataset): # 用于测试
         scalar[scalar==0] = 1
         return (arr - min_value) / scalar
     def collate_fn(self, batch):
+        # Filter out None entries (skipped / corrupt files)
+        batch = [b for b in batch if b is not None]
+        if len(batch) == 0:
+            return None  # nothing to collate
         names, ligs, features, ligands, xyzs = zip(*batch)
         maxlen = 1500
         batch_rfeat = []
