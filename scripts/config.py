@@ -18,11 +18,13 @@ nn_config = {
     'dssp_min_repr': np.load(f'{root_path}/tools/dssp_min_repr.npy'),
     'ankh_max_repr': np.load(f'{root_path}/tools/ankh_max_repr.npy'),
     'ankh_min_repr': np.load(f'{root_path}/tools/ankh_min_repr.npy'),
+    'esm2_max_repr': np.load(f'{root_path}/tools/esm2_max_repr.npy'),
+    'esm2_min_repr': np.load(f'{root_path}/tools/esm2_min_repr.npy'),
     'ion_max_repr': np.load(f'{root_path}/tools/ion_max_repr.npy'),
     'ion_min_repr': np.load(f'{root_path}/tools/ion_min_repr.npy'),
     # model parameters
     
-    'rfeat_dim':1556,
+    'rfeat_dim':2580,
     'ligand_dim':768, 
     'hidden_dim':256, 
     'heads':4, 
@@ -35,7 +37,7 @@ nn_config = {
     'lr':0.0004, 
     
     # training parameters
-    'batch_size':15,
+    'batch_size':1,
     'max_patience':10,
     'device_ids':[0],
 }

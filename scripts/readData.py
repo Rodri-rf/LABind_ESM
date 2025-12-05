@@ -4,23 +4,25 @@ import torch
 from torch.utils.data import Dataset
 from config import nn_config
 data_class = nn_config['pdb_class']
+
 class readData(Dataset): # 用于训练
-    def __init__(self, name_list, proj_dir, lig_dict, true_file):
+    def __init__(self, name_list, proj_dir, lig_dict, true_file, mode):
         self.label_dict = self._read(true_file,skew=1)
         if name_list is not None:
             self.name_list = name_list
         self.proj_dir     = proj_dir
         self.lig_dict = lig_dict
+        self.mode = mode
     def __len__(self):
         return len(self.name_list)
     def __getitem__(self, idx):
         name, lig = self.name_list[idx] # name是pdb_name
-        dssp = self.Normalize(np.load(f'{self.proj_dir}/{data_class}_dssp/{name}.npy'),nn_config[f'dssp_max_repr'],nn_config[f'dssp_min_repr'])
-        ankh = self.Normalize(np.load(f'{self.proj_dir}/ankh/{name}.npy'),nn_config[f'ankh_max_repr'],nn_config[f'ankh_min_repr'])
+        dssp = self.Normalize(np.load(f'{self.proj_dir}/{data_class}_dssp/{self.mode}/{name}.npy'),nn_config[f'dssp_max_repr'],nn_config[f'dssp_min_repr'])
+        esm2 = self.Normalize(np.load(f'{self.proj_dir}/esm3B/{name}.npy'),nn_config[f'esm2_max_repr'],nn_config[f'esm2_min_repr'])
         
-        feature  = np.concatenate([dssp,ankh],axis=1)
+        feature  = np.concatenate([dssp,esm2],axis=1)
         ligand = self.Normalize(self.lig_dict[lig], nn_config[f'ion_max_repr'], nn_config[f'ion_min_repr'])# 768
-        xyz      = np.load(f'{self.proj_dir}/{data_class}_pos/{name}.npy')
+        xyz      = np.load(f'{self.proj_dir}/{data_class}_pos/{self.mode}/{name}.npy')
         y_true   = np.asarray(list(self.label_dict[(name,lig)]),dtype=int)
         return feature, ligand, xyz, y_true
     
@@ -90,7 +92,7 @@ class LoadData(Dataset): # 用于测试
         name, lig = self.name_list[idx] # name是pdb_name
         feature_list = []
         feature_list.append(self.Normalize(np.load(f'{self.proj_dir}/dssp/{name}.npy'),self.repr_dict['dssp_max_repr'],self.repr_dict['dssp_min_repr']))
-        feature_list.append(self.Normalize(np.load(f'{self.proj_dir}/ankh/{name}.npy'),self.repr_dict['ankh_max_repr'],self.repr_dict['ankh_min_repr']))
+        feature_list.append(self.Normalize(np.load(f'{self.proj_dir}/esm2/{name}.npy'),self.repr_dict['esm2_max_repr'],self.repr_dict['esm2_min_repr']))
         feature  = np.concatenate(feature_list,axis=1) # rfeat
         xyz      = np.load(os.path.join(self.proj_dir,'pos',name+'.npy')) # xyz
         # ligand 信息
