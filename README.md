@@ -1,8 +1,56 @@
-# LABind: Identifying Protein Binding Ligand-Aware Sites via Learning Interactions Between Ligand and Protein
+# LABind-ESM: Protein Binding Site Prediction with ESM2-3B
+
 [![DOI](https://zenodo.org/badge/879762327.svg)](https://doi.org/10.5281/zenodo.15871907)
-## Introduction
-LABind is a novel structure-based method to predict the binding sites of proteins with all ions and small molecules in a ligand-aware manner.
-![LABind](./architecture.png)
+
+## Overview
+
+This repository is a **fork of the original LABind model** [[Zhang et al., 2025]](https://doi.org/10.1038/s41467-025-62899-0) that replaces the Ankh protein language model with **ESM2-3B** from Meta AI's Evolutionary Scale Modeling family. The modified architecture, **LABind-ESM**, maintains the original LABind framework while leveraging ESM2's richer 2560-dimensional per-residue embeddings for protein-ligand binding site prediction.
+
+### Key Modifications
+
+The original LABind architecture uses three types of inputs:
+- **Ligand sequences** (SMILES format) → embedded via MolFormer
+- **Protein sequences** → embedded via Ankh (1536-dim)
+- **Protein structures** → encoded via DSSP (20-dim)
+
+**LABind-ESM** makes the following changes:
+- ✅ **Replaced Ankh with ESM2-3B** (2560-dim embeddings)
+- ✅ **Adjusted combined feature dimension** from 1556 to 2580 (ESM2 + DSSP)
+- ✅ **All other architecture components unchanged** (graph transformer layers, attention mechanisms, MLP classifier)
+
+This implementation explores whether ESM2's evolutionary and structural patterns learned from larger-scale training data can improve binding site prediction accuracy.
+
+### Rationale
+
+Protein Language Models (PLMs) like Ankh and ESM2 are transformer-based networks trained on vast protein sequence databases. ESM2-3B offers:
+- **Richer embeddings**: 2560 dimensions vs. Ankh's 1536
+- **Larger training corpus**: Multiple sequence alignments capturing evolutionary patterns
+- **Strong transfer learning**: Proven performance on downstream structural prediction tasks
+
+By integrating ESM2 into LABind's graph-based interaction learner, we aim to capture more detailed residue-level features relevant to binding site prediction while maintaining the original architecture's proven structural reasoning capabilities.
+
+![LABind Architecture](./architecture.png)
+
+## Original LABind
+
+LABind is a structure-based method to predict protein binding sites for ions and small molecules in a ligand-aware manner. This fork builds upon their published work:
+
+**Citation:**
+```bibtex
+@article{zhangLABindIdentifyingProtein2025,
+  title = {{{LABind}}: Identifying Protein Binding Ligand-Aware Sites via Learning Interactions between Ligand and Protein},
+  author = {Zhang, Zhijun and Quan, Lijun and Wang, Junkai and Peng, Liangchen and Chen, Qiufeng and Zhang, Bei and Cao, Lexin and Jiang, Yelu and Li, Geng and Nie, Liangpeng and Wu, Tingfang and Lyu, Qiang},
+  year = {2025},
+  journal = {Nat. Commun.},
+  volume = {16},
+  number = {1},
+  pages = {7712},
+  issn = {2041-1723},
+  doi = {10.1038/s41467-025-62899-0}
+}
+```
+
+**Original Repository:** [https://github.com/ljquanlab/LABind](https://github.com/ljquanlab/LABind)
 
 ## Preparation
 Clone this repository by `git clone https://github.com/ljquanlab/LABind.git` or download the code in ZIP archive.
@@ -60,12 +108,76 @@ docker run -it --gpus all --name=LABind labind  /bin/bash
 ```
 > This will take a few minutes (5-10 minutes) to deploy.
 
-It is also necessary to install three pre-trained models: [ESMFold_v1](https://huggingface.co/facebook/esmfold_v1), [Ankh-large](https://huggingface.co/ElnaggarLab/ankh-large), and [MolFormer-XL-both-10pct](https://huggingface.co/ibm/MoLFormer-XL-both-10pct). We use the pre-trained weights from HuggingFace for prediction. Please download them to your device and modify the corresponding paths in `scripts/config.py`. You can also use `python ./scripts/download_weights.py -o <path>` to download model weights or to automatically download to the default path during prediction.
+### Pre-trained Model Requirements
+
+**LABind-ESM** requires the following pre-trained models:
+- **[ESM2-3B](https://huggingface.co/facebook/esm2_t36_3B_UR50D)** - Replaces Ankh for protein sequence embedding
+- **[ESMFold_v1](https://huggingface.co/facebook/esmfold_v1)** - For structure prediction (if PDB files not provided)
+- **[MolFormer-XL-both-10pct](https://huggingface.co/ibm/MoLFormer-XL-both-10pct)** - For ligand SMILES embedding
+
+Download these models from HuggingFace and update the paths in `scripts/config.py`. You can also use `python ./scripts/download_weights.py -o <path>` to download model weights automatically.
+
+**Note:** The original LABind uses Ankh-large. This fork **does not require Ankh** and instead uses ESM2-3B.
 
 Then add permission to execute for DSSP and MSMS by `chmod +x ./tools/mkdssp ./tools/msms`
 
-## Usage
-### Validation
+## Architectural Details
+
+### Model Architecture Comparison
+
+| **Component** | **Original LABind (Ankh)** | **LABind-ESM** |
+|---------------|---------------------------|----------------|
+| Protein Language Model | Ankh-large | **ESM2-3B** |
+| Sequence Embedding Dim | 1536 | **2560** |
+| Combined Feature Dim (w/ DSSP) | 1556 | **2580** |
+| Hidden Dimension | 256 | 256 |
+| Attention Heads | 4 | 4 |
+| Transformer Layers | 4 | 4 |
+| Graph Neighbors (top-k) | 30 | 30 |
+
+### Feature Processing Pipeline
+
+1. **Ligand Representation**: SMILES → MolFormer → 768-dim embedding
+2. **Protein Sequence**: Amino acids → ESM2-3B → 2560-dim per-residue embeddings
+3. **Protein Structure**: PDB → DSSP → 20-dim secondary structure features
+4. **Combined Features**: [ESM2 ∥ DSSP] → 2580-dim per-residue features
+5. **Graph Construction**: Residues as nodes, top-30 nearest neighbors as edges
+6. **Interaction Learning**: 4-layer graph transformer with cross-attention to ligand
+7. **Classification**: MLP → per-residue binding probabilities
+
+### Loss Function
+
+Due to severe class imbalance (~1.9% binding sites in DS1 dataset), LABind-ESM uses **weighted binary cross-entropy**:
+
+```
+L_wBCE = -1/L Σ [w+ · y_i log(p_i) + (1 - y_i) log(1 - p_i)]
+```
+
+where `w+ = n_negative / n_positive ≈ 51.85` rebalances gradients for minority class learning.
+
+## Performance Notes
+
+Based on evaluation on the LigBind (DS1) dataset with 19 ligands:
+
+- **AUPR**: LABind-ESM achieves **~35% lower** average AUPR compared to original LABind-Ankh
+- **MCC**: LABind-ESM achieves **~32% lower** average MCC compared to original LABind-Ankh
+- Performance degradation is **uniform across ligands** (no specific ligand shows disproportionate weakness)
+
+### Potential Improvements
+
+The current implementation represents a **minimal-change integration** with limited hyperparameter tuning:
+- Learning rate fixed at 4×10⁻⁴ (preliminary tests suggest 1×10⁻⁴ may improve convergence)
+- Dropout rates (0.1) not optimized
+- Batch size forced to 1 due to GPU VRAM constraints
+- Training limited to 70 epochs with early stopping
+
+**Future work** should explore:
+- Systematic hyperparameter optimization (learning rate, dropout, epochs)
+- Larger batch sizes with gradient accumulation
+- Alternative ESM2 layer extraction strategies
+- Fine-tuning ESM2 on domain-specific data
+
+## Validation
 Checkpoints trained on the DS3 dataset are provided in `./model/Unseen/`. If you need to validate our results, you can modify the checkpoint used by LABind in the `./scripts/config.py`.
 We have uploaded all the data files and checkpoints to [Zenodo](https://zenodo.org/records/15692081).
 
@@ -109,14 +221,62 @@ python create_ds.py -o <out_path> -m <max_length>
 ```
 
 
+## Dataset
+
+**LABind-ESM** is trained and evaluated on the **DS1 (LigBind)** dataset from the original LABind paper:
+- **10,341** non-redundant proteins
+- **11,121** protein-ligand binding samples
+- **72,029** binding sites vs. **3,734,243** non-binding sites (~1.9% positive class)
+- **19 different ligands** (metal ions and small molecules)
+
+Data files and checkpoints are available at: [Zenodo](https://zenodo.org/records/15692081)
+
+## Training Configuration
+
+### 5-Fold Cross-Validation
+
+All reported metrics use stratified 5-fold cross-validation with `random_state=42` for reproducibility.
+
+### Hyperparameters
+
+| Parameter | Value |
+|-----------|-------|
+| Learning Rate | 0.0004 (Adam) |
+| Batch Size | 1 |
+| Training Epochs | 70 |
+| Early Stopping Patience | 10 |
+| Dropout | 0.1 |
+| Attention Dropout | 0.1 |
+| Coordinate Augmentation (ε) | 0.05 |
+
 ## Contacts
-Any more questions, please do not hesitate to contact us: zjzhang21@stu.suda.edu.cn and ljquan@suda.edu.cn.
+
+**LABind-ESM Fork:**
+- Rodrigo Adolfo Reyes Feregrino - rodrigo.reyesferegrino@utoronto.ca
+- Xavier Alejandro Ibanez-Padron - xavier.ibanezpadron@mail.utoronto.ca
+- Leon Alexander Nitsch - leon.nitsch@mail.utoronto.ca
+- Zixin Zeng - zxin.zeng@mail.utoronto.ca
+
+**Original LABind:**
+- zjzhang21@stu.suda.edu.cn
+- ljquan@suda.edu.cn
 
 ## License
+
 This project is licensed under the terms of the MIT license. See [LICENSE](./LICENSE) for additional details.
 
+## Source Code and Data
+
+- **LABind-ESM Repository:** [https://github.com/Rodri-rf/LABind_ESM](https://github.com/Rodri-rf/LABind_ESM)
+- **Project Data (Zenodo):** [https://zenodo.org/records/15875006](https://zenodo.org/records/15875006)
+- **Original LABind Repository:** [https://github.com/ljquanlab/LABind](https://github.com/ljquanlab/LABind)
+
 ## Citation
-```
+
+If you use LABind-ESM in your research, please cite both this implementation and the original LABind paper:
+
+**Original LABind:**
+```bibtex
 @article{zhangLABindIdentifyingProtein2025,
   title = {{{LABind}}: Identifying Protein Binding Ligand-Aware Sites via Learning Interactions between Ligand and Protein},
   author = {Zhang, Zhijun and Quan, Lijun and Wang, Junkai and Peng, Liangchen and Chen, Qiufeng and Zhang, Bei and Cao, Lexin and Jiang, Yelu and Li, Geng and Nie, Liangpeng and Wu, Tingfang and Lyu, Qiang},
@@ -129,3 +289,17 @@ This project is licensed under the terms of the MIT license. See [LICENSE](./LIC
   doi = {10.1038/s41467-025-62899-0}
 }
 ```
+
+**ESM2:**
+```bibtex
+@article{lin2022esm2,
+  title={Language models of protein sequences at the scale of evolution enable accurate structure prediction},
+  author={Lin, Zeming and Akin, Halil and Rao, Roshan and Hie, Brian and Zhu, Zhongkai and Lu, Wenting and Smetanin, Nikita and Verkuil, Robert and Kabeli, Ori and Shmueli, Yair and others},
+  journal={Science},
+  year={2023}
+}
+```
+
+## Acknowledgments
+
+This work was completed as part of CSC413 (Neural Networks and Deep Learning) at the University of Toronto Mississauga. We thank the original LABind team for their excellent open-source implementation and the Meta AI team for the ESM2 models.
