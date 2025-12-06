@@ -137,6 +137,7 @@ Then add permission to execute for DSSP and MSMS by `chmod +x ./tools/mkdssp ./t
 
 ### Feature Processing Pipeline
 
+
 1. **Ligand Representation**: SMILES → MolFormer → 768-dim embedding
 2. **Protein Sequence**: Amino acids → ESM2-3B → 2560-dim per-residue embeddings
 3. **Protein Structure**: PDB → DSSP → 20-dim secondary structure features
@@ -145,37 +146,6 @@ Then add permission to execute for DSSP and MSMS by `chmod +x ./tools/mkdssp ./t
 6. **Interaction Learning**: 4-layer graph transformer with cross-attention to ligand
 7. **Classification**: MLP → per-residue binding probabilities
 
-### Loss Function
-
-Due to severe class imbalance (~1.9% binding sites in DS1 dataset), LABind-ESM uses **weighted binary cross-entropy**:
-
-```
-L_wBCE = -1/L Σ [w+ · y_i log(p_i) + (1 - y_i) log(1 - p_i)]
-```
-
-where `w+ = n_negative / n_positive ≈ 51.85` rebalances gradients for minority class learning.
-
-## Performance Notes
-
-Based on evaluation on the LigBind (DS1) dataset with 19 ligands:
-
-- **AUPR**: LABind-ESM achieves **~35% lower** average AUPR compared to original LABind-Ankh
-- **MCC**: LABind-ESM achieves **~32% lower** average MCC compared to original LABind-Ankh
-- Performance degradation is **uniform across ligands** (no specific ligand shows disproportionate weakness)
-
-### Potential Improvements
-
-The current implementation represents a **minimal-change integration** with limited hyperparameter tuning:
-- Learning rate fixed at 4×10⁻⁴ (preliminary tests suggest 1×10⁻⁴ may improve convergence)
-- Dropout rates (0.1) not optimized
-- Batch size forced to 1 due to GPU VRAM constraints
-- Training limited to 70 epochs with early stopping
-
-**Future work** should explore:
-- Systematic hyperparameter optimization (learning rate, dropout, epochs)
-- Larger batch sizes with gradient accumulation
-- Alternative ESM2 layer extraction strategies
-- Fine-tuning ESM2 on domain-specific data
 
 ## Validation
 Checkpoints trained on the DS3 dataset are provided in `./model/Unseen/`. If you need to validate our results, you can modify the checkpoint used by LABind in the `./scripts/config.py`.
