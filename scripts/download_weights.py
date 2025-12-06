@@ -37,6 +37,26 @@ def download_all_weights(outpath= None, pretrain_path = None):
     )
     print("All models downloaded successfully.")
     
+    
+def download_ESM2(outpath= None):
+    # ESM2
+    snapshot_download(
+        repo_id = "facebook/esm2_t36_3B_UR50D", 
+        local_dir = outpath + "/esm2_t36_3B_UR50D" if outpath != None else "./tools/esm2_t36_3B_UR50D",
+        allow_patterns= "*",
+        endpoint = HF_MIRROR
+    )
+    
+    snapshot_download(
+        repo_id = "facebook/esm2_t48_15B_UR50D",
+        local_dir = outpath + "/esm2_t48_15B_UR50D" if outpath != None else "./tools/esm2_t48_15B_UR50D",
+        allow_patterns= "*",
+        endpoint = HF_MIRROR
+    )
+    
+    print("ESM2 models downloaded successfully.")
+        
+    
 
 if __name__ == "__main__":
     # set up argument parser
@@ -48,4 +68,5 @@ if __name__ == "__main__":
     outpath = args.outpath
     HF_MIRROR = args.endpoint
     # download pretrained weights
-    download_all_weights(outpath)
+    #download_all_weights(outpath)
+    download_ESM2(outpath)
